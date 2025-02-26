@@ -20,6 +20,13 @@ void CPU_loadProgram(CPU *cpu, const uint8_t *program, size_t size) {
 }
 
 bool CPU_step(CPU *cpu) {
+	if (cpu ->ip >= MEMORY_SIZE) {
+		cpu->running = false;
+		return false;
+	}
+
+	uint8_t opcode = cpu->memory[cpu->ip];
+
 	switch (opcode) {
 		case 0x00:
 			cpu->running = false;
