@@ -4,6 +4,7 @@
 #include "timestamp.h"
 #include "hexdumper.h"
 #include "cpu.h"
+#include "sdl.h"
 
 int main(void) {
 	System sys;
@@ -12,6 +13,9 @@ int main(void) {
 		fprintf(stderr, "System initialization failed.\n");
 		return EXIT_FAILURE;
 	}
+
+	init_sdl();
+
 	uint8_t program[] = { 0x03, 0x05, 0x00 };
 	CPU_loadProgram(&sys.cpu, program, sizeof(program));
 
@@ -20,7 +24,12 @@ int main(void) {
 
 	uint64_t start_time = get_timestamp_milliseconds();
 
-	System_run(&sys);
+	while (sys.running) {
+		handle_events();
+		System_run(&sys);
+		update_screen(sys.cpu.memory);
+		SDL_Delay(16);
+	}
 
 	uint64_t end_time = get_timestamp_milliseconds();
 	printf("Execution took %llu milliseconds\n", (unsigned long long)(end_time - start_time));
@@ -28,6 +37,7 @@ int main(void) {
 	printf("Memory dump after execution:\n");
 	hexdump(sys.cpu.memory, 64);
 
+	shutdown_sdl();
 	System_cleanup(&sys);
 	
 	return EXIT_SUCCESS;
