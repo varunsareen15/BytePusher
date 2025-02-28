@@ -20,7 +20,7 @@ void CPU_loadProgram(CPU *cpu, const uint8_t *program, size_t size) {
 }
 
 bool CPU_step(CPU *cpu) {
-	if (cpu ->ip >= MEMORY_SIZE) {
+	if (cpu->ip >= MEMORY_SIZE - 1) {
 		cpu->running = false;
 		return false;
 	}
@@ -39,9 +39,11 @@ bool CPU_step(CPU *cpu) {
 			break;
 		case 0x03:
 			cpu->memory[cpu->dp]++;
+			printf("Memory[%d] updated to %02X\n", cpu->dp, cpu->memory[cpu->dp]);
 			break;
 		case 0x04:
 			cpu->memory[cpu->dp]--;
+			printf("Memory[%d] updated to %02X\n", cpu->dp, cpu->memory[cpu->dp]);
 			break;
 		case 0x05:
 			putchar(cpu->memory[cpu->dp]);
@@ -54,17 +56,21 @@ bool CPU_step(CPU *cpu) {
 			break;
 		}
 		case 0x07:
-			if (cpu->memory[cpu->dp] == 0) {
-				uint16_t nested = 1;
-				while (nested && ++cpu->ip < MEMORY_SIZE) {
-					if (cpu->memory[cpu->ip] == 0x07) {
-						nested++;
-					} else if (cpu->memory[cpu->ip] == 0x08) {
-						nested--;	
-					}
-				}
-			}
-			break;
+    		if (cpu->memory[cpu->dp] == 0) {
+        	uint16_t nested = 1;
+
+        	// Ensure we don't exceed MEMORY_SIZE when incrementing ip
+        		while (nested && (cpu->ip + 1) < (uint16_t) MEMORY_SIZE) {
+            		cpu->ip++;  // Safely increment instruction pointer
+
+            		if (cpu->memory[cpu->ip] == 0x07) {
+                		nested++;  // Entering a new nested loop
+            		} else if (cpu->memory[cpu->ip] == 0x08) {
+                		nested--;  // Exiting a loop
+            		}
+        		}
+   			}
+   			break;
 		default:
 			fprintf(stderr, "Unkown opcode 0x%02X at address %u\n", opcode, cpu->ip);
 			cpu->running = false;

@@ -1,5 +1,6 @@
 #include "system.h"
 #include "cpu.h"
+#include "sdl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,5 +33,7 @@ void System_run(System *sys) {
 }
 
 void System_cleanup(System *sys) {
+	if (!sys) return;
+	shutdown_sdl();
 	printf("System cleanup complete.\n");
 }

@@ -6,39 +6,61 @@
 #include "cpu.h"
 #include "sdl.h"
 
-int main(void) {
-	System sys;
+void load_program_from_file(System *sys, const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
 
-	if (!System_init(&sys)) {
-		fprintf(stderr, "System initialization failed.\n");
-		return EXIT_FAILURE;
-	}
+    fseek(file, 0, SEEK_END);
+    size_t file_size = ftell(file);
+    rewind(file);
 
-	init_sdl();
+    if (file_size > MEMORY_SIZE) {
+        printf("Warning: Program is too large! Truncating to %d bytes.\n", MEMORY_SIZE);
+        file_size = MEMORY_SIZE;
+    }
 
-	uint8_t program[] = { 0x03, 0x05, 0x00 };
-	CPU_loadProgram(&sys.cpu, program, sizeof(program));
+    fread(sys->cpu.memory, 1, file_size, file);
+    fclose(file);
 
-	printf("Memory dump before execution:\n");
-	hexdump(sys.cpu.memory, 64);
+    // ✅ Print first 32 bytes of loaded program
+    printf("Loaded program (%zu bytes):\n", file_size);
+    for (size_t i = 0; i < 32 && i < file_size; i++) {
+        printf("%02X ", sys->cpu.memory[i]);
+        if ((i + 1) % 16 == 0) printf("\n");
+    }
+    printf("\n");
+}
 
-	uint64_t start_time = get_timestamp_milliseconds();
+int main(int argc, char *argv[]) {
+	if (argc < 2) {
+        printf("Usage: %s <BytePusher program>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
 
-	while (sys.running) {
-		handle_events();
-		System_run(&sys);
-		update_screen(sys.cpu.memory);
-		SDL_Delay(16);
-	}
+    System sys;
+    if (!System_init(&sys)) {
+        fprintf(stderr, "System initialization failed.\n");
+        return EXIT_FAILURE;
+    }
 
-	uint64_t end_time = get_timestamp_milliseconds();
-	printf("Execution took %llu milliseconds\n", (unsigned long long)(end_time - start_time));
+    // ✅ Load the program from file
+    load_program_from_file(&sys, argv[1]);
 
-	printf("Memory dump after execution:\n");
-	hexdump(sys.cpu.memory, 64);
+    // ✅ Start SDL
+    init_sdl();
 
-	shutdown_sdl();
-	System_cleanup(&sys);
-	
-	return EXIT_SUCCESS;
+    // ✅ Run CPU and update display
+    while (sys.running) {
+        handle_events();
+        System_run(&sys);
+        update_screen(sys.cpu.memory);
+        SDL_Delay(16);
+    }
+
+    shutdown_sdl();
+    System_cleanup(&sys);
+    return EXIT_SUCCESS;
 }
