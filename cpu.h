@@ -2,24 +2,26 @@
 #define CPU_H
 
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include "memory.h"
+#include "display.h"
+#include "input.h"
 
-#define MEMORY_SIZE 65536
-
-typedef struct CPU {
-	uint8_t memory[MEMORY_SIZE];
-	uint16_t ip;
-	uint16_t dp;
-	bool running;
+typedef struct {
+    Memory* memory;
+    Display* display;
+    Input* input;
 } CPU;
 
-void CPU_init(CPU *cpu);
+// Initialize CPU
+CPU* cpu_init(Memory* memory, Display* display, Input* input);
 
-void CPU_loadProgram(CPU *cpu, const uint8_t *program, size_t size);
+// Free CPU
+void cpu_free(CPU* cpu);
 
-bool CPU_step(CPU *cpu);
+// Execute one instruction
+void cpu_execute_instruction(CPU* cpu);
 
-void CPU_run(CPU *cpu);
+// Execute one frame (256 instructions per frame)
+void cpu_execute_frame(CPU* cpu);
 
-#endif
+#endif // CPU_H

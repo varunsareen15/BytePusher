@@ -1,15 +1,35 @@
+# Compiler settings
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11
-LIBS = -lSDL2
+CFLAGS = -Wall -Wextra -std=c99 -O2
+LDFLAGS = -lSDL2
 
-SRCS = main.c system.c cpu.c timestamp.c hexdumper.c sdl.c
+# Source files
+SRCS = main.c memory.c cpu.c display.c input.c
 OBJS = $(SRCS:.c=.o)
+EXEC = bytepusher
 
-bytepusher: $(OBJS)
-	$(CC) $(CFLAGS) -o bytepusher $(OBJS) $(LIBS)
+# Default target
+all: $(EXEC)
 
-%.o: %.c
+# Link object files to create executable
+$(EXEC): $(OBJS)
+	$(CC) -o $(EXEC) $(OBJS) $(LDFLAGS)
+
+# Compile source files to object files
+%.o: %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Special case for main.o which depends on multiple headers
+main.o: main.c memory.h cpu.h display.h input.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Clean target
 clean:
-	rm -f $(OBJS) bytepusher
+	rm -f $(OBJS) $(EXEC)
+
+# Run target
+run: $(EXEC)
+	./$(EXEC) $(ROM)
+
+# Phony targets
+.PHONY: all clean run

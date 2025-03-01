@@ -1,88 +1,62 @@
-#include "cpu.h"
+#include <stdlib.h>
 #include <stdio.h>
+#include "cpu.h"
 
-void CPU_init(CPU *cpu) {
-	cpu->ip = 0;
-	cpu->dp = 0;
-	cpu->running = true;
-	for (size_t i = 0; i < MEMORY_SIZE; i++) {
-		cpu->memory[i] = 0;
-	}
+// BytePusher executes 65536 instructions per second (256 per frame at 60fps)
+#define INSTRUCTIONS_PER_FRAME 256
+
+CPU* cpu_init(Memory* memory, Display* display, Input* input) {
+    if (!memory || !display || !input) {
+        return NULL;
+    }
+
+    CPU* cpu = (CPU*)malloc(sizeof(CPU));
+    if (!cpu) {
+        return NULL;
+    }
+
+    cpu->memory = memory;
+    cpu->display = display;
+    cpu->input = input;
+
+    return cpu;
 }
 
-void CPU_loadProgram(CPU *cpu, const uint8_t *program, size_t size) {
-	if (size > MEMORY_SIZE) {
-		size = MEMORY_SIZE;
-	}
-	for (size_t i = 0; i < size; i++) {
-		cpu->memory[i] = program[i];
-	}
+void cpu_free(CPU* cpu) {
+    if (cpu) {
+        free(cpu);
+    }
 }
 
-bool CPU_step(CPU *cpu) {
-	if (cpu->ip >= MEMORY_SIZE - 1) {
-		cpu->running = false;
-		return false;
-	}
-
-	uint8_t opcode = cpu->memory[cpu->ip];
-
-	switch (opcode) {
-		case 0x00:
-			cpu->running = false;
-			break;
-		case 0x01:
-			cpu->dp = (cpu->dp + 1) % MEMORY_SIZE;
-			break;
-		case 0x02:
-			cpu->dp = (cpu->dp - 1) % MEMORY_SIZE;
-			break;
-		case 0x03:
-			cpu->memory[cpu->dp]++;
-			printf("Memory[%d] updated to %02X\n", cpu->dp, cpu->memory[cpu->dp]);
-			break;
-		case 0x04:
-			cpu->memory[cpu->dp]--;
-			printf("Memory[%d] updated to %02X\n", cpu->dp, cpu->memory[cpu->dp]);
-			break;
-		case 0x05:
-			putchar(cpu->memory[cpu->dp]);
-			break;
-		case 0x06: {
-			int c = getchar();
-			if (c != EOF) {
-				cpu->memory[cpu->dp] = (uint8_t)c;
-			}
-			break;
-		}
-		case 0x07:
-    		if (cpu->memory[cpu->dp] == 0) {
-        	uint16_t nested = 1;
-
-        	// Ensure we don't exceed MEMORY_SIZE when incrementing ip
-        		while (nested && (cpu->ip + 1) < (uint16_t) MEMORY_SIZE) {
-            		cpu->ip++;  // Safely increment instruction pointer
-
-            		if (cpu->memory[cpu->ip] == 0x07) {
-                		nested++;  // Entering a new nested loop
-            		} else if (cpu->memory[cpu->ip] == 0x08) {
-                		nested--;  // Exiting a loop
-            		}
-        		}
-   			}
-   			break;
-		default:
-			fprintf(stderr, "Unkown opcode 0x%02X at address %u\n", opcode, cpu->ip);
-			cpu->running = false;
-			break;
-	}
-	cpu->ip++;
-	return cpu->running;
+void cpu_execute_instruction(CPU* cpu) {
+    // Get program counter (24-bit address)
+    uint32_t pc = memory_read_address(cpu->memory, MEMORY_ADDR_PC);
+    
+    // Each instruction is 3 bytes (A, B, C)
+    uint8_t A = memory_read_byte(cpu->memory, pc);
+    uint8_t B = memory_read_byte(cpu->memory, pc + 1);
+    uint8_t C = memory_read_byte(cpu->memory, pc + 2);
+    
+    // Prepare next PC (PC + 3)
+    uint32_t next_pc = (pc + 3) & 0xFFFFFF; // Ensure it stays 24-bit
+    
+    // Store next PC back to memory
+    memory_write_byte(cpu->memory, MEMORY_ADDR_PC, (next_pc >> 16) & 0xFF);
+    memory_write_byte(cpu->memory, MEMORY_ADDR_PC + 1, (next_pc >> 8) & 0xFF);
+    memory_write_byte(cpu->memory, MEMORY_ADDR_PC + 2, next_pc & 0xFF);
+    
+    // Perform operation: mem[A*256+B] = mem[C*256+mem[A*256+B]]
+    uint16_t addr_AB = (A << 8) | B;
+    uint8_t value_AB = memory_read_byte(cpu->memory, addr_AB);
+    uint16_t addr_C = (C << 8) | value_AB;
+    uint8_t value_C = memory_read_byte(cpu->memory, addr_C);
+    
+    memory_write_byte(cpu->memory, addr_AB, value_C);
 }
 
-
-void CPU_run(CPU *cpu) {
-	while (cpu->running) {
-		CPU_step(cpu);
-	}
+void cpu_execute_frame(CPU* cpu) {
+    // Execute 256 instructions per frame (at 60 FPS, this is 15360 per second)
+    for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++) {
+        cpu_execute_instruction(cpu);
+    }
 }
